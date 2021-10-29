@@ -81,6 +81,10 @@ public:
 	virtual const char     *GetGameDescription( void ) OVERRIDE;
 	virtual void			CreateNetworkStringTables( void ) OVERRIDE;
 	
+	#ifdef SecobMod__ENABLE_MAP_BRIEFINGS
+	void LoadMapBriefing(void);
+	#endif //SecobMod__ENABLE_MAP_BRIEFINGS
+	
 	// Save/restore system hooks
 	virtual CSaveRestoreData  *SaveInit( int size ) OVERRIDE;
 	virtual void			SaveWriteFields( CSaveRestoreData *, char const* , void *, datamap_t *, typedescription_t *, int ) OVERRIDE;

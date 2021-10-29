@@ -754,6 +754,14 @@ void CServerGameDLL::PostInit()
 void CServerGameDLL::DLLShutdown( void )
 {
 
+	//SecobMod__Information: Clear the transition file.
+	#ifdef SecobMod__SAVERESTORE
+		FileHandle_t hFile = g_pFullFileSystem->Open( "transition.cfg", "w" );
+		CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
+		g_pFullFileSystem->WriteFile( "transition.cfg", "MOD", buf );
+		g_pFullFileSystem->Close( hFile );
+	#endif //SecobMod__SAVERESTORE
+
 	// Due to dependencies, these are not autogamesystems
 	ModelSoundsCacheShutdown();
 
@@ -855,6 +863,11 @@ bool CServerGameDLL::GameInit( void )
 	ResetGlobalState();
 	engine->ServerCommand( "exec game.cfg\n" );
 	engine->ServerExecute( );
+	#ifdef SecobMod__Force_LAN_DISABLED
+		engine->ServerCommand( "sv_lan 0\n" );
+		engine->ServerCommand( "heartbeat\n" );
+	#endif //SecobMod__Force_LAN_DISABLED
+
 	CBaseEntity::sm_bAccurateTriggerBboxChecks = true;
 
 	IGameEvent *event = gameeventmanager->CreateEvent( "game_init" );
@@ -1052,8 +1065,12 @@ bool CServerGameDLL::LevelInit( const char *pMapName, char const *pMapEntities, 
 	//  to be parsed (the above code has loaded all point_template entities)
 	PrecachePointTemplates();
 
+	#ifdef SecobMod__ENABLE_MAP_BRIEFINGS
+	LoadMapBriefing(); // Obsidian
+	#else
 	// load MOTD from file into stringtable
 	LoadMessageOfTheDay();
+	#endif //SecobMod__ENABLE_MAP_BRIEFINGS
 
 	// Sometimes an ent will Remove() itself during its precache, so RemoveImmediate won't happen.
 	// This makes sure those ents get cleaned up.
@@ -1341,7 +1358,11 @@ void CServerGameDLL::Think( bool finalTick )
 	if ( m_fAutoSaveDangerousTime != 0.0f && m_fAutoSaveDangerousTime < gpGlobals->curtime )
 	{
 		// The safety timer for a dangerous auto save has expired
-		CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
+		#ifdef SecobMod__Enable_Fixed_Multiplayer_AI
+			CBasePlayer *pPlayer = UTIL_GetLocalPlayer(); 
+		#else
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
+		#endif //SecobMod__Enable_Fixed_Multiplayer_AI
 
 		if ( pPlayer && ( pPlayer->GetDeathTime() == 0.0f || pPlayer->GetDeathTime() > gpGlobals->curtime )
 			&& !pPlayer->IsSinglePlayerGameEnding()
@@ -1374,6 +1395,27 @@ void CServerGameDLL::LevelShutdown( void )
 #endif
 
 	g_pServerBenchmark->EndBenchmark();
+
+	#ifdef SecobMod__ENABLE_DYNAMIC_PLAYER_RESPAWN_CODE
+		extern ConVar sv_SecobMod__increment_killed;
+		sv_SecobMod__increment_killed.SetValue (0);
+		#endif //SecobMod__ENABLE_DYNAMIC_PLAYER_RESPAWN_CODE
+		
+		#ifdef SecobMod__USE_PLAYERCLASSES
+		extern int AssaulterPlayerNumbers;
+		extern int SupporterPlayerNumbers;
+		extern int MedicPlayerNumbers;
+		extern int HeavyPlayerNumbers;
+		AssaulterPlayerNumbers = 0;
+		SupporterPlayerNumbers = 0;
+		MedicPlayerNumbers = 0;
+		HeavyPlayerNumbers = 0;
+	#endif //SecobMod__USE_PLAYERCLASSES
+
+	#ifdef SecobMod__ENABLE_NIGHTVISION_FOR_HEAVY_CLASS
+		//SecobMod__Information: Make sure fullbright gets turned off.
+		cvar->FindVar("mat_fullbright")->SetValue(0);
+	#endif //SecobMod__ENABLE_NIGHTVISION_FOR_HEAVY_CLASS
 
 	MDLCACHE_CRITICAL_SECTION();
 	IGameSystem::LevelShutdownPreEntityAllSystems();
@@ -2032,6 +2074,75 @@ void CServerGameDLL::LoadMessageOfTheDay()
 	LoadSpecificMOTDMsg( motdfile, "motd" );
 	LoadSpecificMOTDMsg( motdfile_text, "motd_text" );
 }
+
+	#ifdef SecobMod__ENABLE_MAP_BRIEFINGS
+		// Obsidian
+		void CServerGameDLL::LoadMapBriefing()
+		{
+			char data[2048];
+		
+			char szMapName[128];
+			Q_strncpy( szMapName, STRING( gpGlobals->mapname ), sizeof( szMapName ) );
+			Q_strlower( szMapName );
+			
+			//On the off chance our game ever starts looking in the wrong place for briefing files, make sure we force our mod directory path.
+			char *finalPath = null;
+			char *nullBriefingPath = null;
+			char searchPaths[MAX_PATH * 2];
+			char searchPaths2[MAX_PATH * 2];
+			g_pFullFileSystem->GetSearchPath("LOGDIR", false, searchPaths, sizeof(searchPaths));
+			g_pFullFileSystem->GetSearchPath("LOGDIR", false, searchPaths2, sizeof(searchPaths2));
+			char *pPath = strtok(searchPaths, ";");
+			char *pPath2 = strtok(searchPaths2, ";");
+			while (pPath)
+			{
+				finalPath = Q_strncat(pPath, "maps\\map_briefings\\", sizeof(searchPaths), COPY_ALL_CHARACTERS);
+				finalPath = Q_strncat(finalPath, ("%s", szMapName), sizeof(searchPaths), COPY_ALL_CHARACTERS);
+				finalPath = Q_strncat(finalPath, ".html", sizeof(searchPaths), COPY_ALL_CHARACTERS);
+				break;
+			}
+			while (pPath2)
+			{
+				nullBriefingPath = Q_strncat(pPath2, "maps\\map_briefings\\", sizeof(searchPaths2), COPY_ALL_CHARACTERS);
+				nullBriefingPath = Q_strncat(nullBriefingPath, ("null_briefing.html"), sizeof(searchPaths2), COPY_ALL_CHARACTERS);
+				break;
+			}
+			//!!!!!!!!!!!!!!
+
+			char szMapString[MAX_PATH]; 
+
+			Q_snprintf(szMapString, sizeof(szMapString), "%s", finalPath);
+
+			int length = filesystem->Size( szMapString, "GAME" );
+		
+			FileHandle_t hFile = filesystem->Open( szMapString, "rb", "GAME" );
+			
+			if ( hFile == FILESYSTEM_INVALID_HANDLE )
+			{
+				length = filesystem->Size(nullBriefingPath, "GAME");
+				hFile = filesystem->Open(nullBriefingPath, "rb", "GAME");				
+			}
+
+			filesystem->Read( data, length, hFile );
+		
+			data[length] = 0;
+		
+			g_pStringTableInfoPanel->AddString( CBaseEntity::IsServer(), "briefing", length+1, data );
+		
+			if ( hFile == FILESYSTEM_INVALID_HANDLE )
+			{
+				Msg ("Invalid briefing file specified");
+				return;
+			}
+		
+			filesystem->Read( data, length, hFile );
+			filesystem->Close( hFile );
+		
+			data[length] = 0;
+		
+			g_pStringTableInfoPanel->AddString( CBaseEntity::IsServer(), "briefing", length+1, data );
+		}
+	#endif //SecobMod__ENABLE_MAP_BRIEFINGS
 
 void CServerGameDLL::LoadSpecificMOTDMsg( const ConVar &convar, const char *pszStringName )
 {
@@ -2761,6 +2872,30 @@ void CServerGameClients::ClientDisconnect( edict_t *pEdict )
 				g_pGameRules->ClientDisconnected( pEdict );
 				gamestats->Event_PlayerDisconnected( player );
 			}
+			
+		//SecobMod__Information: If a client disconnects wipe them from the transition file. Note that if you want it so people who lag out can rejoin instantly without picking a class, then comment all this section out.
+		#ifdef SecobMod__SAVERESTORE
+		  KeyValues *pkvTransitionRestoreFile = new KeyValues( "transition.cfg" );
+			if ( pkvTransitionRestoreFile->LoadFromFile( filesystem, "transition.cfg" ) )
+			{
+				while ( pkvTransitionRestoreFile )
+				{
+					const char *pszSteamID = pkvTransitionRestoreFile->GetName(); //Gets our header, which we use the players SteamID for.
+					const char *PlayerSteamID = engine->GetPlayerNetworkIDString(player->edict()); //Finds the current players Steam ID.	
+		
+						if ( Q_strcmp( PlayerSteamID, pszSteamID ) != 0)	 
+						{
+							break;		 
+						}
+				KeyValues *pkvNULL= pkvTransitionRestoreFile->FindKey( pszSteamID );
+				pkvNULL->deleteThis();	
+				//pkvNULL = NULL;
+				//pkvNULL->SaveToFile( filesystem, pkvTransitionRestoreFile, NULL );
+				pkvTransitionRestoreFile->SaveToFile( filesystem, "cfg/transition.cfg" );
+				break;
+				}
+			}
+		#endif //SecobMod__SAVERESTORE
 		}
 
 		// Make sure all Untouch()'s are called for this client leaving
@@ -3197,7 +3332,12 @@ void CServerGameClients::GetBugReportInfo( char *buf, int buflen )
 
 	if ( gpGlobals->maxClients == 1 )
 	{
-		CBaseEntity *ent = FindPickerEntity( UTIL_PlayerByIndex(1) );
+		#ifdef SecobMod__Enable_Fixed_Multiplayer_AI
+			CBaseEntity *ent = FindPickerEntity( UTIL_GetLocalPlayer() ); 
+		#else
+			CBaseEntity *ent = FindPickerEntity( UTIL_PlayerByIndex(1) );
+		#endif //SecobMod__Enable_Fixed_Multiplayer_AI
+
 		if ( ent )
 		{
 			Q_snprintf( buf, buflen, "Picker %i/%s - ent %s model %s\n",
