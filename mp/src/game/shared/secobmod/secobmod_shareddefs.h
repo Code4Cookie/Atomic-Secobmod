@@ -32,7 +32,7 @@
 /**************************/
 #define SecobMod__FRIENDLY_FIRE_ENABLED //Enable friendly fire.
 #define SecobMod__ENABLE_DYNAMIC_PLAYER_RESPAWN_CODE //Respawn where you were killed or for preference near a living player as opposed to back at the start of a map.
-#define SecobMod__USE_PLAYERCLASSES //Enable player classes.
+// #define SecobMod__USE_PLAYERCLASSES //Enable player classes.
 #define SecobMod__MULTIPLAYER_VIEWCONTROL_CAMERAS //Fixes the View Control Cameras so that all clients are affected by View Control cameras.
 //#define SecobMod__FORCE_TEAMPLAY_AS_ALWAYS_ON //Forces teamplay to always be enabled.
 #define SecobMod__ENABLE_FAKE_PASSENGER_SEATS //Allows a hacky passenger seat to be added to valves vehicles (jeep and jalopy).
@@ -87,8 +87,8 @@
 /******************************/
 /* Experimental Enhancements. */
 /******************************/
-#define SecobMod__ENABLE_IN_TESTING_ITEMS //Enables buggy test items again, such as the Portal gun. Make sure you have Portal installed, and the portal items line enabled.
-#define SecobMod__ENABLE_PORTAL_ITEMS //Remember to enable (remove the //) Portal content in your GameInfo.txt file.
+//#define SecobMod__ENABLE_IN_TESTING_ITEMS //Enables buggy test items again, such as the Portal gun. Make sure you have Portal installed, and the portal items line enabled.
+//#define SecobMod__ENABLE_PORTAL_ITEMS //Remember to enable (remove the //) Portal content in your GameInfo.txt file.
 
 /******************/
 /* SDK Bug Fixes. */
